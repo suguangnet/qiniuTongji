@@ -92,13 +92,13 @@ class QiniuDataStatAPI:
                 'data': None
             }
     
-    def get_storage_usage(self, bucket_name=None, region=None, begin_time=None, end_time=None, granularity='day'):
+    def get_storage_usage(self, bucket_name=None, region=None, begin_time=None, end_time=None, granularity='day', file_type=None):
         """获取存储用量信息"""
-        return self.api_manager.get_storage_usage(bucket_name, region, begin_time, end_time, granularity)
+        return self.api_manager.get_storage_usage(bucket_name, region, begin_time, end_time, granularity, file_type)
     
-    def get_file_count(self, bucket_name=None, region=None, begin_time=None, end_time=None, granularity='day'):
+    def get_file_count(self, bucket_name=None, region=None, begin_time=None, end_time=None, granularity='day', file_type=None):
         """获取文件数量统计"""
-        return self.api_manager.get_file_count(bucket_name, region, begin_time, end_time, granularity)
+        return self.api_manager.get_file_count(bucket_name, region, begin_time, end_time, granularity, file_type)
     
     def get_low_freq_storage_usage(self, bucket_name=None, region=None, begin_time=None, end_time=None, granularity='day'):
         """获取低频存储的存储量统计"""

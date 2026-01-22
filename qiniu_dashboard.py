@@ -111,6 +111,32 @@ HTML_TEMPLATE = '''
             font-size: 1em;
             transition: all 0.3s;
         }
+        
+        .time-presets {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 15px;
+        }
+        
+        .preset-btn {
+            padding: 8px 12px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9em;
+            transition: background 0.3s;
+        }
+        
+        .preset-btn:hover {
+            background: #5a6fd8;
+        }
+        
+        .preset-btn.active {
+            background: #764ba2;
+        }
 
         .form-group input:focus,
         .form-group select:focus {
@@ -217,13 +243,13 @@ HTML_TEMPLATE = '''
             <form id="filterForm">
                 <div class="form-row">
                     <div class="form-group">
-                        <label for="begin_date">开始日期:</label>
-                        <input type="date" id="begin_date" name="begin_date" required>
+                        <label for="begin_date">开始日期时间:</label>
+                        <input type="datetime-local" id="begin_date" name="begin_date" required step="1">
                     </div>
 
                     <div class="form-group">
-                        <label for="end_date">结束日期:</label>
-                        <input type="date" id="end_date" name="end_date" required>
+                        <label for="end_date">结束日期时间:</label>
+                        <input type="datetime-local" id="end_date" name="end_date" required step="1">
                     </div>
 
                     <div class="form-group">
@@ -234,6 +260,15 @@ HTML_TEMPLATE = '''
                             <option value="day" selected>天</option>
                         </select>
                     </div>
+                </div>
+                
+                <div class="time-presets">
+                    <button type="button" class="preset-btn active" data-days="1">今天</button>
+                    <button type="button" class="preset-btn" data-days="-1">昨天</button>
+                    <button type="button" class="preset-btn" data-days="3">3天</button>
+                    <button type="button" class="preset-btn" data-days="7">7天</button>
+                    <button type="button" class="preset-btn" data-days="30">本月</button>
+                    <button type="button" class="preset-btn" data-days="-30">上月</button>
                 </div>
             </form>
         </div>
@@ -255,9 +290,9 @@ HTML_TEMPLATE = '''
                 <div class="stat-value" id="stat-files">-</div>
             </div>
             <div class="stat-card">
-                <div class="stat-icon">🚀</div>
-                <div class="stat-title">外网流出流量</div>
-                <div class="stat-value" id="stat-flow-out">-</div>
+                <div class="stat-icon">📊</div>
+                <div class="stat-title">GET请求</div>
+                <div class="stat-value" id="stat-get">-</div>
             </div>
             <div class="stat-card">
                 <div class="stat-icon">🌐</div>
@@ -265,21 +300,15 @@ HTML_TEMPLATE = '''
                 <div class="stat-value" id="stat-cdn">-</div>
             </div>
             <div class="stat-card">
-                <div class="stat-icon">📊</div>
-                <div class="stat-title">GET请求</div>
-                <div class="stat-value" id="stat-get">-</div>
+                <div class="stat-icon">🚀</div>
+                <div class="stat-title">外网流出流量</div>
+                <div class="stat-value" id="stat-flow-out">-</div>
             </div>
+
+
         </div>
 
         <div id="chartsGrid" class="charts-grid" style="display: none;">
-            <div class="chart-card">
-                <div class="chart-title">📈 存储空间趋势</div>
-                <div id="chart1" class="chart-container"></div>
-            </div>
-            <div class="chart-card">
-                <div class="chart-title">📁 文件数量变化</div>
-                <div id="chart2" class="chart-container"></div>
-            </div>
             <div class="chart-card">
                 <div class="chart-title">🚀 外网流出流量</div>
                 <div id="chart3" class="chart-container"></div>
@@ -288,25 +317,89 @@ HTML_TEMPLATE = '''
                 <div class="chart-title">🌐 CDN回源流量</div>
                 <div id="chart4" class="chart-container"></div>
             </div>
+            <div class="chart-card">
+                <div class="chart-title">📈 存储空间趋势</div>
+                <div id="chart1" class="chart-container"></div>
+            </div>
+            <div class="chart-card">
+                <div class="chart-title">📁 文件数量变化</div>
+                <div id="chart2" class="chart-container"></div>
+            </div>
         </div>
     </div>
 
     <script>
+        // 日期时间格式化函数 (datetime-local格式 YYYY-MM-DDTHH:mm:ss) - 包含秒
+        const formatDateTime = (date) => {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            const hours = String(date.getHours()).padStart(2, '0');
+            const minutes = String(date.getMinutes()).padStart(2, '0');
+            const seconds = String(date.getSeconds()).padStart(2, '0');
+            return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
+        };
+        
+        // 日期格式化函数 (仅日期 YYYY-MM-DD)
+        const formatDate = (date) => {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        };
+        
+        // 获取指定天数前的日期
+        const getDateNDaysAgo = (days) => {
+            const date = new Date();
+            if (days > 0) {
+                // 正数表示过去N天
+                date.setDate(date.getDate() - days + 1); // +1 因为包括今天
+            } else {
+                // 负数表示前一天或上月
+                date.setDate(date.getDate() + days);
+            }
+            return date;
+        };
+        
+        // 获取本月第一天
+        const getFirstDayOfMonth = () => {
+            const date = new Date();
+            date.setDate(1);
+            return date;
+        };
+        
+        // 获取上月第一天
+        const getFirstDayOfLastMonth = () => {
+            const date = new Date();
+            date.setMonth(date.getMonth() - 1);
+            date.setDate(1);
+            return date;
+        };
+        
+        // 获取上月最后一天
+        const getLastDayOfLastMonth = () => {
+            const date = new Date();
+            date.setDate(0); // 设为0天就是上个月最后一天
+            return date;
+        };
+        
+        // 设置日期范围
+        const setDateRange = (beginDate, endDate) => {
+            document.getElementById('begin_date').value = formatDateTime(beginDate);
+            document.getElementById('end_date').value = formatDateTime(endDate);
+            // 触发数据加载
+            loadData();
+        };
+        
         // 页面加载后设置默认日期并自动获取数据
         document.addEventListener('DOMContentLoaded', function() {
-            // 设置默认日期（过去7天）
-            const now = new Date();
-            const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-
-            const formatDate = (date) => {
-                const year = date.getFullYear();
-                const month = String(date.getMonth() + 1).padStart(2, '0');
-                const day = String(date.getDate()).padStart(2, '0');
-                return `${year}-${month}-${day}`;
-            };
-
-            document.getElementById('begin_date').value = formatDate(sevenDaysAgo);
-            document.getElementById('end_date').value = formatDate(now);
+            // 设置默认日期为今天，开始时间为00:00:00，结束时间为当前时间
+            const today = new Date();
+            const beginDate = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0); // 当天00:00:00
+            const endDate = new Date(today.getFullYear(), today.getMonth(), today.getDate(), today.getHours(), today.getMinutes(), today.getSeconds()); // 当天当前时间
+            
+            document.getElementById('begin_date').value = formatDateTime(beginDate);
+            document.getElementById('end_date').value = formatDateTime(endDate);
 
             // 自动加载数据
             loadData();
@@ -315,6 +408,66 @@ HTML_TEMPLATE = '''
             document.getElementById('begin_date').addEventListener('change', loadData);
             document.getElementById('end_date').addEventListener('change', loadData);
             document.getElementById('granularity').addEventListener('change', loadData);
+            
+            // 添加时间预设按钮事件监听
+            document.querySelectorAll('.preset-btn').forEach(button => {
+                button.addEventListener('click', function() {
+                    // 移除所有active类
+                    document.querySelectorAll('.preset-btn').forEach(btn => {
+                        btn.classList.remove('active');
+                    });
+                    
+                    // 为当前按钮添加active类
+                    this.classList.add('active');
+                    
+                    const days = parseInt(this.getAttribute('data-days'));
+                    const today = new Date();
+                    let beginDate, endDate;
+                    
+                    switch(this.textContent.trim()) {
+                        case '今天':
+                            beginDate = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0); // 当天00:00:00
+                            endDate = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59); // 当天23:59:59
+                            break;
+                        case '昨天':
+                            const yesterday = new Date(today);
+                            yesterday.setDate(yesterday.getDate() - 1);
+                            beginDate = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate(), 0, 0, 0); // 昨天00:00:00
+                            endDate = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate(), 23, 59, 59); // 昨天23:59:59
+                            break;
+                        case '3天':
+                            beginDate = new Date(today);
+                            beginDate.setDate(beginDate.getDate() - 2); // 3天前的00:00:00 (包含今天)
+                            beginDate.setHours(0, 0, 0, 0);
+                            endDate = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59); // 今天23:59:59
+                            break;
+                        case '7天':
+                            beginDate = new Date(today);
+                            beginDate.setDate(beginDate.getDate() - 6); // 7天前的00:00:00 (包含今天)
+                            beginDate.setHours(0, 0, 0, 0);
+                            endDate = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59); // 今天23:59:59
+                            break;
+                        case '本月':
+                            beginDate = getFirstDayOfMonth();
+                            beginDate.setHours(0, 0, 0, 0);
+                            endDate = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59); // 今天23:59:59
+                            break;
+                        case '上月':
+                            beginDate = getFirstDayOfLastMonth();
+                            beginDate.setHours(0, 0, 0, 0);
+                            endDate = getLastDayOfLastMonth();
+                            endDate.setHours(23, 59, 59, 999);
+                            break;
+                        default:
+                            beginDate = getDateNDaysAgo(Math.abs(days));
+                            beginDate.setHours(0, 0, 0, 0);
+                            endDate = (days > 0) ? new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59) : getDateNDaysAgo(days + 1);
+                            endDate.setHours(23, 59, 59, 999);
+                    }
+                    
+                    setDateRange(beginDate, endDate);
+                });
+            });
         });
 
         async function loadData() {
@@ -325,16 +478,24 @@ HTML_TEMPLATE = '''
             if (!beginDate || !endDate) return;
 
             // 转换日期格式
-            const formatDateForAPI = (dateStr) => {
-                const date = new Date(dateStr + 'T00:00:00');
+            const formatDateForAPI = (dateTimeStr) => {
+                // 将datetime-local格式转换为API所需的格式
+                const date = new Date(dateTimeStr);
                 const year = date.getFullYear();
                 const month = String(date.getMonth() + 1).padStart(2, '0');
                 const day = String(date.getDate()).padStart(2, '0');
-                return `${year}${month}${day}000000`;
+                const hours = String(date.getHours()).padStart(2, '0');
+                const minutes = String(date.getMinutes()).padStart(2, '0');
+                const seconds = String(date.getSeconds()).padStart(2, '0');
+                return `${year}${month}${day}${hours}${minutes}${seconds}`;
             };
-
+                            
+            // 根据API文档，end参数是开区间，所以需要加一秒以确保包含所选时间
+            const endDateObj = new Date(endDate);
+            endDateObj.setSeconds(endDateObj.getSeconds() + 1); // 开区间，需要加一秒
+                            
             const begin = formatDateForAPI(beginDate);
-            const end = formatDateForAPI(endDate);
+            const end = formatDateForAPI(endDateObj);
 
             try {
                 document.getElementById('loading').style.display = 'block';
@@ -368,7 +529,7 @@ HTML_TEMPLATE = '''
             // 更新统计数据
             if (data.storage.length > 0) {
                 const latest = data.storage[data.storage.length - 1];
-                document.getElementById('stat-storage').textContent = formatBytes(latest.value);
+                document.getElementById('stat-storage').textContent = formatBytesAuto(latest.value);
             }
 
             if (data.files.length > 0) {
@@ -408,7 +569,7 @@ HTML_TEMPLATE = '''
                 },
                 yAxis: {
                     type: 'value',
-                    axisLabel: { formatter: value => formatBytes(value) }
+                    axisLabel: { formatter: value => formatBytesAuto(value) }
                 },
                 series: [{
                     type: 'line',
@@ -490,6 +651,13 @@ HTML_TEMPLATE = '''
 
         function formatBytes(bytes) {
             if (!bytes) return '0 B';
+            // 将字节转换为GB (1 GB = 1024 * 1024 * 1024 bytes)
+            const gbSize = parseFloat(bytes) / (1024 * 1024 * 1024);
+            return gbSize.toFixed(6) + ' GB';
+        }
+        
+        function formatBytesAuto(bytes) {
+            if (!bytes) return '0 B';
             const units = ['B', 'KB', 'MB', 'GB', 'TB'];
             let size = parseFloat(bytes);
             let unitIndex = 0;
@@ -522,11 +690,12 @@ def get_stats():
             end_time = data.get('end')
             granularity = data.get('granularity', 'day')
         else:
-            # 默认使用最近7天
+            # 默认使用今天
             now = time.time()
-            seven_days_ago = now - 7 * 24 * 60 * 60
-            begin_time = time.strftime('%Y%m%d000000', time.localtime(seven_days_ago))
-            end_time = time.strftime('%Y%m%d235959', time.localtime(now))
+            today = time.strftime('%Y%m%d000000', time.localtime(now))
+            end_of_today = time.strftime('%Y%m%d235959', time.localtime(now))
+            begin_time = today
+            end_time = end_of_today
             granularity = 'day'
 
         # 查询各项数据

@@ -510,8 +510,8 @@ HTML_TEMPLATE = '''
                                     // 根据指标类型格式化数值
                                     let formattedValue;
                                     if (metricConfig.select === 'flow') {
-                                        // 流量数据，使用字节格式化
-                                        formattedValue = formatBytes(value);
+                                        // 流量数据，使用GB格式化
+                                        formattedValue = formatBytesToGB(value);
                                     } else {
                                         // 请求次数数据，使用数值格式化
                                         formattedValue = value.toLocaleString();
@@ -535,8 +535,8 @@ HTML_TEMPLATE = '''
                                 // 根据指标类型格式化数值
                                 let formattedValue;
                                 if (metricConfig.select === 'flow') {
-                                    // 流量数据，使用字节格式化
-                                    formattedValue = formatBytes(sizeValue);
+                                    // 流量数据，使用GB格式化
+                                    formattedValue = formatBytesToGB(sizeValue);
                                 } else {
                                     // 请求次数数据，使用数值格式化
                                     formattedValue = sizeValue.toLocaleString();
@@ -732,8 +732,8 @@ HTML_TEMPLATE = '''
                     // 检查是否是流量相关的查询
                     const selectParam = document.getElementById('select_param')?.value;
                     if(selectParam === 'flow') {
-                        // 流量数据，使用字节格式化
-                        valueDisplay = formatBytes(formattedData.value);
+                        // 流量数据，使用GB格式化
+                        valueDisplay = formatBytesToGB(formattedData.value);
                     } else {
                         // 请求次数数据，使用数值格式化
                         valueDisplay = formattedData.value.toLocaleString();
@@ -777,6 +777,15 @@ HTML_TEMPLATE = '''
             }
 
             return size.toFixed(2) + ' ' + units[unitIndex];
+        }
+        
+        function formatBytesToGB(bytes) {
+            if (bytes === null || bytes === undefined) return 'N/A';
+            
+            // 将字节转换为GB (1 GB = 1024 * 1024 * 1024 bytes)
+            const gbSize = parseFloat(bytes) / (1024 * 1024 * 1024);
+            
+            return gbSize.toFixed(6) + ' GB';
         }
     </script>
 </body>

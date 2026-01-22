@@ -1,0 +1,28 @@
+codecov:
+  ci:
+    - prow.qiniu.io       # prow need this. seems useless
+  require_ci_to_pass: no  # `no` means the bot will comment on the PR even before all ci passed
+
+github_checks:              # close github checks
+  annotations: false
+
+comment:
+  layout: "reach, diff, flags, files"
+  behavior: new           # `new` means the bot will comment a new message instead of edit the old one
+  require_changes: false  # if true: only post the comment if coverage changes
+  require_base: no        # [yes :: must have a base report to post]
+  require_head: yes       # [yes :: must have a head report to post]
+  branches:               # branch names that can post comment
+      - "master"
+
+coverage:
+  status:                                 # check coverage status to pass or fail
+      patch: off
+      project:                            # project analyze all code in the project
+          default:
+            # basic
+            target: 73.5%                 # the minimum coverage ratio that the commit must meet
+            threshold: 3%                 # allow the coverage to drop
+            base: auto
+            if_not_found: success
+            if_ci_failed: error

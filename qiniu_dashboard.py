@@ -407,7 +407,12 @@ HTML_TEMPLATE = '''
 
             <div class="stat-card">
                 <div class="stat-icon">📊</div>
-                <div class="stat-title">CDN计费带宽</div>
+                <div class="stat-title">CDN计费流量</div>
+                <div class="stat-value" id="stat-cdn-traffic">-</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">📈</div>
+                <div class="stat-title">CDN带宽峰值</div>
                 <div class="stat-value" id="stat-cdn-bandwidth">-</div>
             </div>
             <div class="stat-card">
@@ -416,7 +421,7 @@ HTML_TEMPLATE = '''
                 <div class="stat-value" id="stat-cdn">-</div>
             </div>
             <div class="stat-card">
-                <div class="stat-icon">📊</div>
+                <div class="stat-icon">📥</div>
                 <div class="stat-title">GET请求</div>
                 <div class="stat-value" id="stat-get">-</div>
             </div>
@@ -440,7 +445,11 @@ HTML_TEMPLATE = '''
 
         <div id="chartsGrid" class="charts-grid" style="display: none;">
             <div class="chart-card">
-                <div class="chart-title">📊 CDN计费带宽趋势</div>
+                <div class="chart-title">📊 CDN计费流量</div>
+                <div id="chart8" class="chart-container"></div>
+            </div>
+            <div class="chart-card">
+                <div class="chart-title">📈 CDN带宽峰值趋势</div>
                 <div id="chart7" class="chart-container"></div>
             </div>
             <div class="chart-card">
@@ -754,13 +763,21 @@ HTML_TEMPLATE = '''
                 document.getElementById('stat-put').textContent = total.toLocaleString();
             }
 
-            // 更新CDN计费带宽数据
+            // CDN计费流量：与 test-cdn.py 同源（/v2/tune/flux），value 为字节，合计后以 GB 显示
+            const cdnTrafficElement = document.getElementById('stat-cdn-traffic');
+            if (cdnTrafficElement && data.cdnTraffic && data.cdnTraffic.length > 0) {
+                const totalBytes = data.cdnTraffic.reduce((sum, item) => sum + item.value, 0);
+                const totalGb = totalBytes / (1024 * 1024 * 1024);
+                cdnTrafficElement.textContent = totalGb.toFixed(4) + ' GB';
+            } else if (cdnTrafficElement) {
+                cdnTrafficElement.textContent = '暂无数据';
+            }
+
+            // CDN带宽峰值：与 test-cdn.py 同源（/v2/tune/bandwidth），API 返回 bps，取所选时间范围内峰值并显示为 Mbps/Gbps
             const cdnBandwidthElement = document.getElementById('stat-cdn-bandwidth');
             if (cdnBandwidthElement && data.cdnBandwidth && data.cdnBandwidth.length > 0) {
-                // 计算总带宽
-                const total = data.cdnBandwidth.reduce((sum, item) => sum + item.value, 0);
-                // 显示总带宽
-                cdnBandwidthElement.textContent = formatBytes(total);
+                const peakBps = Math.max(...data.cdnBandwidth.map(item => item.value));
+                cdnBandwidthElement.textContent = formatBandwidth(peakBps);
             } else if (cdnBandwidthElement) {
                 cdnBandwidthElement.textContent = '暂无数据';
             }
@@ -782,7 +799,8 @@ HTML_TEMPLATE = '''
             }
 
             // 绘制图表
-            drawChart7(data.cdnBandwidth || []);  // CDN计费带宽
+            drawChart8(data.cdnTraffic || []);   // CDN计费流量（test-cdn.py 同源，单位 GB）
+            drawChart7(data.cdnBandwidth || []);  // CDN带宽峰值
             drawChart4(data.cdnFlow);           // CDN回源流量
             drawChart5(data.getRequests);       // GET请求次数
             drawChart6(data.putRequests);       // PUT请求次数
@@ -854,6 +872,58 @@ HTML_TEMPLATE = '''
                     itemStyle: { color: '#4facfe' }
                 }],
                 grid: { left: '10%', right: '5%', bottom: '10%', top: '5%' }
+            });
+        }
+
+        function bytesToGb(bytes) {
+            if (!bytes) return 0;
+            return parseFloat(bytes) / (1024 * 1024 * 1024);
+        }
+        function formatGb(bytes) {
+            return bytesToGb(bytes).toFixed(4) + ' GB';
+        }
+
+        function drawChart8(data) {
+            // CDN计费流量：与 test-cdn.py 同源（/v2/tune/flux），后端 value 为字节，图表统一用 GB
+            const chart = echarts.init(document.getElementById('chart8'));
+            const gbData = (data || []).map(item => bytesToGb(item.value));
+            chart.setOption({
+                tooltip: {
+                    trigger: 'axis',
+                    formatter: function(params) {
+                        const idx = params[0].dataIndex;
+                        const raw = (data && data[idx]) ? data[idx].value : 0;
+                        return params[0].name + '<br/>CDN计费流量: <strong>' + formatGb(raw) + '</strong>';
+                    }
+                },
+                grid: { left: '10%', right: '5%', bottom: '10%', top: '10%', containLabel: true },
+                xAxis: {
+                    type: 'category',
+                    data: (data || []).map(item => item.time),
+                    axisLabel: { rotate: 45, fontSize: 12 },
+                    axisLine: { lineStyle: { color: '#999' } }
+                },
+                yAxis: {
+                    type: 'value',
+                    name: 'CDN计费流量 (GB)',
+                    nameTextStyle: { fontSize: 14, color: '#666' },
+                    axisLabel: {
+                        formatter: function(value) {
+                            return value.toFixed(2) + ' GB';
+                        }
+                    },
+                    axisLine: { lineStyle: { color: '#999' } },
+                    splitLine: { lineStyle: { color: '#eee', type: 'dashed' } }
+                },
+                series: [{
+                    name: 'CDN计费流量',
+                    type: 'line',
+                    smooth: true,
+                    data: gbData,
+                    areaStyle: { opacity: 0.3 },
+                    lineStyle: { color: '#00b894', width: 3 },
+                    itemStyle: { color: '#00b894' }
+                }]
             });
         }
 
@@ -1104,16 +1174,16 @@ HTML_TEMPLATE = '''
         }
 
         function drawChart7(data) {
+            // 总带宽峰值趋势：API 返回 bps，按日显示带宽，单位 Mbps/Gbps
             const chart = echarts.init(document.getElementById('chart7'));
+            const bpsData = (data || []).map(item => item.value);
             chart.setOption({
                 tooltip: {
                     trigger: 'axis',
-                    axisPointer: {
-                        type: 'shadow'
-                    },
+                    axisPointer: { type: 'shadow' },
                     formatter: function(params) {
-                        return params[0].name + '<br/>' +
-                               'CDN流量: <strong>' + params[0].value.toFixed(2) + '</strong> GB';
+                        const v = params[0].value;
+                        return params[0].name + '<br/>总带宽峰值: <strong>' + formatBandwidth(v) + '</strong>';
                     }
                 },
                 grid: {
@@ -1125,57 +1195,30 @@ HTML_TEMPLATE = '''
                 },
                 xAxis: {
                     type: 'category',
-                    data: data.map(item => item.time),
-                    axisLabel: {
-                        rotate: 45,
-                        fontSize: 12
-                    },
-                    axisLine: {
-                        lineStyle: {
-                            color: '#999'
-                        }
-                    }
+                    data: (data || []).map(item => item.time),
+                    axisLabel: { rotate: 45, fontSize: 12 },
+                    axisLine: { lineStyle: { color: '#999' } }
                 },
                 yAxis: {
                     type: 'value',
-                    name: 'CDN流量 (GB)',
-                    nameTextStyle: {
-                        fontSize: 14,
-                        color: '#666'
-                    },
+                    name: '总带宽峰值 (bps)',
+                    nameTextStyle: { fontSize: 14, color: '#666' },
                     axisLabel: {
                         formatter: function(value) {
-                            if (value >= 1000000) {
-                                return (value / 1000000).toFixed(1) + 'M';
-                            } else if (value >= 1000) {
-                                return (value / 1000).toFixed(1) + 'K';
-                            }
-                            return value.toFixed(2);
+                            return formatBandwidth(value);
                         }
                     },
-                    axisLine: {
-                        lineStyle: {
-                            color: '#999'
-                        }
-                    },
-                    splitLine: {
-                        lineStyle: {
-                            color: '#eee',
-                            type: 'dashed'
-                        }
-                    }
+                    axisLine: { lineStyle: { color: '#999' } },
+                    splitLine: { lineStyle: { color: '#eee', type: 'dashed' } }
                 },
                 series: [{
-                    name: 'CDN流量',
+                    name: '总带宽峰值',
                     type: 'bar',
-                    data: data.map(item => item.value / (1024 * 1024 * 1024)), // 转换为GB
+                    data: bpsData,
                     itemStyle: {
                         color: {
                             type: 'linear',
-                            x: 0,
-                            y: 0,
-                            x2: 0,
-                            y2: 1,
+                            x: 0, y: 0, x2: 0, y2: 1,
                             colorStops: [
                                 { offset: 0, color: '#55efc4' },
                                 { offset: 1, color: '#00b894' }
@@ -1187,10 +1230,7 @@ HTML_TEMPLATE = '''
                         itemStyle: {
                             color: {
                                 type: 'linear',
-                                x: 0,
-                                y: 0,
-                                x2: 0,
-                                y2: 1,
+                                x: 0, y: 0, x2: 0, y2: 1,
                                 colorStops: [
                                     { offset: 0, color: '#00b894' },
                                     { offset: 1, color: '#55efc4' }
@@ -1202,12 +1242,10 @@ HTML_TEMPLATE = '''
                         show: true,
                         position: 'top',
                         formatter: function(params) {
-                            if (params.value > 0) {
-                                return params.value.toFixed(2);
-                            }
+                            if (params.value > 0) return formatBandwidth(params.value);
                             return '';
                         },
-                        fontSize: 11,
+                        fontSize: 10,
                         color: '#666'
                     }
                 }]
@@ -1339,19 +1377,32 @@ def get_stats():
             region=region  # 传递区域参数
         )
 
-        # 获取CDN流量数据
-        # 将时间从YYYYMMDDHHMMSS格式转换为YYYY-MM-DD格式
-        start_date_formatted = f"{begin_time[:4]}-{begin_time[4:6]}-{begin_time[6:8]}"
-        end_date_formatted = f"{end_time[:4]}-{end_time[4:6]}-{end_time[6:8]}"
+        # 获取CDN流量/带宽数据：时间用 YYYY-MM-DD，且为闭区间
+        # 前端 end 可能因开区间加 1 秒变成次日 00:00:00（如 20260131235959 -> 20260201000000），需还原为用户选的最后一天
+        start_d = datetime.datetime.strptime(begin_time[:8], '%Y%m%d').date()
+        end_d = datetime.datetime.strptime(end_time[:8], '%Y%m%d').date()
+        if end_time[8:14] == '000000':  # 结束时间为当日 00:00:00，说明用户选的是前一天 23:59:59
+            end_d = end_d - datetime.timedelta(days=1)
+        start_date_formatted = start_d.strftime('%Y-%m-%d')
+        end_date_formatted = end_d.strftime('%Y-%m-%d')
         
+        # CDN 流量接口最多 30 天，超过则只查前 30 天
+        span_days = (end_d - start_d).days + 1
+        end_date_flux = (start_d + datetime.timedelta(days=29)) if span_days > 30 else end_d
+        end_date_formatted_flux = end_date_flux.strftime('%Y-%m-%d')
+        
+        # 使用 config 中的 cdn_domains，与 test-cdn.py 一致
+        cdn_domains = QINIU_CONFIG.get('cdn_domains', [])
         cdn_traffic_result = api_manager.get_cdn_traffic_stats(
+            domains=cdn_domains,
             start_date=start_date_formatted,
-            end_date=end_date_formatted,
+            end_date=end_date_formatted_flux,
             granularity=granularity
         )
         
-        # 获取CDN计费带宽数据
+        # 获取CDN计费带宽数据（fusion.qiniuapi.com /v2/tune/bandwidth，与 test-cdn.py 一致，最多 31 天）
         cdn_bandwidth_result = api_manager.get_cdn_bandwidth_stats(
+            domains=cdn_domains,
             start_date=start_date_formatted,
             end_date=end_date_formatted,
             granularity=granularity
@@ -1433,18 +1484,18 @@ def parse_cdn_traffic(result):
     if result.get('status_code') == 200 and result.get('data'):
         api_data = result['data']
         
-        # 检查返回的数据结构
+        # 检查返回的数据结构（time/data 可能为 None，如“今天”无数据时）
         if api_data.get('code') == 200:
-            time_points = api_data.get('time', [])
-            data_points = api_data.get('data', {})
+            time_points = api_data.get('time') or []
+            data_points = api_data.get('data') or {}
             
             # 初始化总流量数据，长度与时间点相同
             total_values = [0] * len(time_points)
             
             # 将所有域名的流量数据累加
             for domain, domain_data in data_points.items():
-                china_data = domain_data.get('china', [])
-                oversea_data = domain_data.get('oversea', [])
+                china_data = (domain_data or {}).get('china') or []
+                oversea_data = (domain_data or {}).get('oversea') or []
                 
                 # 累加国内外流量数据到总流量数组
                 for i in range(min(len(total_values), len(china_data))):
@@ -1478,16 +1529,16 @@ def parse_cdn_bandwidth(result):
         
         # 检查返回的数据结构
         if api_data.get('code') == 200:
-            time_points = api_data.get('time', [])
-            data_points = api_data.get('data', {})
+            time_points = api_data.get('time') or []
+            data_points = api_data.get('data') or {}
             
             # 初始化总带宽数据，长度与时间点相同
             total_values = [0] * len(time_points)
             
             # 将所有域名的带宽数据累加
             for domain, domain_data in data_points.items():
-                china_data = domain_data.get('china', [])
-                oversea_data = domain_data.get('oversea', [])
+                china_data = (domain_data or {}).get('china') or []
+                oversea_data = (domain_data or {}).get('oversea') or []
                 
                 # 累加国内外带宽数据到总带宽数组
                 for i in range(min(len(total_values), len(china_data))):

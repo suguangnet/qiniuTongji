@@ -302,6 +302,75 @@ class QiniuAPIManager:
                 'data': None
             }
 
+    def get_cdn_bandwidth_stats(self, domains=None, start_date=None, end_date=None, granularity='day'):
+        """
+        获取CDN计费带宽统计
+        
+        Args:
+            domains (list): 域名列表
+            start_date (str): 开始日期 YYYY-MM-DD
+            end_date (str): 结束日期 YYYY-MM-DD
+            granularity (str): 时间粒度，'day', 'hour', '5min'
+        """
+        import datetime
+        import requests
+        from config import QINIU_CONFIG
+        
+        # 初始化认证
+        q = self.auth
+        
+        # 如果未提供日期，则使用默认值
+        if start_date is None:
+            start_date = (datetime.datetime.now() - datetime.timedelta(days=7)).strftime('%Y-%m-%d')
+        if end_date is None:
+            end_date = datetime.datetime.now().strftime('%Y-%m-%d')
+        
+        # 设置域名
+        if domains is None:
+            domains = QINIU_CONFIG.get('cdn_domains', [])
+        
+        # 域名列表转为字符串，用分号分割
+        domains_str = ';'.join(domains) if isinstance(domains, list) else domains
+        
+        # CDN带宽API基础配置
+        base_url = 'http://fusion.qiniuapi.com'
+        bandwidth_url = f"{base_url}/v2/tune/bandwidth"
+        bandwidth_payload = {
+            "startDate": start_date,
+            "endDate": end_date,
+            "granularity": granularity,
+            "domains": domains_str
+        }
+        
+        try:
+            # 生成认证token
+            token = q.token_of_request(bandwidth_url, body=str(bandwidth_payload))
+            
+            headers = {
+                'Authorization': f'QBox {token}',
+                'Content-Type': 'application/json'
+            }
+            
+            # 设置不使用代理
+            proxies = {
+                'http': '',
+                'https': ''
+            }
+            
+            response = requests.post(bandwidth_url, headers=headers, json=bandwidth_payload, proxies=proxies)
+            
+            return {
+                'status_code': response.status_code,
+                'headers': dict(response.headers),
+                'data': response.json() if response.content else None
+            }
+        except Exception as e:
+            return {
+                'status_code': 0,
+                'error': str(e),
+                'data': None
+            }
+
     def get_bucket_info(self, bucket_name=None):
         """
         获取存储空间信息

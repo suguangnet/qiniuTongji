@@ -632,14 +632,15 @@ HTML_TEMPLATE = '''
                 document.getElementById('stat-put').textContent = total.toLocaleString();
             }
 
-            // 更新CDN流量数据
-            // 显示两个域名的流量数据（GB单位）
+            // 更新CDN计费带宽数据
             const cdnBandwidthElement = document.getElementById('stat-cdn-bandwidth');
-            if (cdnBandwidthElement) {
-                // 组合显示两个域名的流量数据，转换为GB单位
-                // 主域名: 29.69 TB = 30402.75 GB, 辅域名: 6.91 GB
-                const trafficText = `主: ${(29.69 * 1024).toFixed(2)} GB, 辅: ${6.91.toFixed(2)} GB`;
-                cdnBandwidthElement.textContent = trafficText;
+            if (cdnBandwidthElement && data.cdnBandwidth && data.cdnBandwidth.length > 0) {
+                // 计算总带宽
+                const total = data.cdnBandwidth.reduce((sum, item) => sum + item.value, 0);
+                // 显示总带宽
+                cdnBandwidthElement.textContent = formatBytes(total);
+            } else if (cdnBandwidthElement) {
+                cdnBandwidthElement.textContent = '暂无数据';
             }
 
             if (data.cdnFlow.length > 0) {
@@ -659,7 +660,7 @@ HTML_TEMPLATE = '''
             }
 
             // 绘制图表
-            drawChart7(data.cdnTraffic || []);  // CDN计费带宽
+            drawChart7(data.cdnBandwidth || []);  // CDN计费带宽
             drawChart4(data.cdnFlow);           // CDN回源流量
             drawChart5(data.getRequests);       // GET请求次数
             drawChart6(data.putRequests);       // PUT请求次数
@@ -1217,9 +1218,20 @@ def get_stats():
         )
 
         # 获取CDN流量数据
+        # 将时间从YYYYMMDDHHMMSS格式转换为YYYY-MM-DD格式
+        start_date_formatted = f"{begin_time[:4]}-{begin_time[4:6]}-{begin_time[6:8]}"
+        end_date_formatted = f"{end_time[:4]}-{end_time[4:6]}-{end_time[6:8]}"
+        
         cdn_traffic_result = api_manager.get_cdn_traffic_stats(
-            start_date=begin_time[:8],  # 转换为YYYY-MM-DD格式
-            end_date=end_time[:8],      # 转换为YYYY-MM-DD格式
+            start_date=start_date_formatted,
+            end_date=end_date_formatted,
+            granularity=granularity
+        )
+        
+        # 获取CDN计费带宽数据
+        cdn_bandwidth_result = api_manager.get_cdn_bandwidth_stats(
+            start_date=start_date_formatted,
+            end_date=end_date_formatted,
             granularity=granularity
         )
 
@@ -1231,7 +1243,8 @@ def get_stats():
             'cdnFlow': parse_blob_io(cdn_flow_result),
             'getRequests': parse_blob_io(get_requests_result),
             'putRequests': parse_blob_io(put_requests_result),
-            'cdnTraffic': parse_cdn_traffic(cdn_traffic_result)
+            'cdnTraffic': parse_cdn_traffic(cdn_traffic_result),
+            'cdnBandwidth': parse_cdn_bandwidth(cdn_bandwidth_result)
         }
 
         return jsonify({
@@ -1312,6 +1325,49 @@ def parse_cdn_traffic(result):
                 oversea_data = domain_data.get('oversea', [])
                 
                 # 累加国内外流量数据到总流量数组
+                for i in range(min(len(total_values), len(china_data))):
+                    total_values[i] += china_data[i]
+                
+                for i in range(min(len(total_values), len(oversea_data))):
+                    if i < len(total_values):
+                        total_values[i] += oversea_data[i]
+            
+            # 为每个时间点创建数据项
+            for i, time_point in enumerate(time_points):
+                if i < len(total_values):
+                    # 提取日期部分，格式为 YYYY-MM-DD HH:MM:SS
+                    if ' ' in time_point:
+                        date_part = time_point.split(' ')[0]  # 取日期部分 YYYY-MM-DD
+                        month_day = '-'.join(date_part.split('-')[1:3])  # MM-DD格式
+                    else:
+                        month_day = time_point
+                    data.append({
+                        'time': month_day,
+                        'value': total_values[i]
+                    })
+    return data
+
+
+def parse_cdn_bandwidth(result):
+    """解析 CDN 计费带宽数据格式"""
+    data = []
+    if result.get('status_code') == 200 and result.get('data'):
+        api_data = result['data']
+        
+        # 检查返回的数据结构
+        if api_data.get('code') == 200:
+            time_points = api_data.get('time', [])
+            data_points = api_data.get('data', {})
+            
+            # 初始化总带宽数据，长度与时间点相同
+            total_values = [0] * len(time_points)
+            
+            # 将所有域名的带宽数据累加
+            for domain, domain_data in data_points.items():
+                china_data = domain_data.get('china', [])
+                oversea_data = domain_data.get('oversea', [])
+                
+                # 累加国内外带宽数据到总带宽数组
                 for i in range(min(len(total_values), len(china_data))):
                     total_values[i] += china_data[i]
                 

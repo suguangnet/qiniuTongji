@@ -671,12 +671,12 @@ def query_usage():
 
 def run_server():
     """启动Web服务器"""
-    app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False)
+    app.run(host='0.0.0.0', port=8000, debug=False, use_reloader=False)
 
 if __name__ == '__main__':
     print("七牛云存储用量查询Web应用正在启动...")
-    print("请在浏览器中访问: http://localhost:5000")
+    print("请在浏览器中访问: http://localhost:8000")
     print("按 Ctrl+C 停止服务")
     
     # 启动Web服务器
-    app.run(host='0.0.0.0', port=5000, debug=False)
+    app.run(host='0.0.0.0', port=8000, debug=False)

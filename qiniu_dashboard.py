@@ -1,8 +1,3 @@
-"""
-七牛云存储统计可视化仪表盘 - 简化图表版
-基于 qiniu_final_app.py 的稳定版本
-"""
-
 import time
 import datetime
 from flask import Flask, render_template_string, request, jsonify
@@ -31,6 +26,7 @@ def format_bytes(bytes_size):
 ACCESS_KEY = QINIU_CONFIG['access_key']
 SECRET_KEY = QINIU_CONFIG['secret_key']
 BUCKET_NAME = QINIU_CONFIG['bucket_name']
+REGION = QINIU_CONFIG['region']
 
 app = Flask(__name__)
 
@@ -41,7 +37,7 @@ HTML_TEMPLATE = '''
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>七牛云存储数据可视化仪表盘</title>
+    <title>直播数据统计可视化仪表盘</title>
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
     <style>
         * {
@@ -75,6 +71,43 @@ HTML_TEMPLATE = '''
             color: #333;
             font-size: 2.2em;
             margin-bottom: 10px;
+        }
+        
+        .input-controls {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-top: 15px;
+        }
+        
+        .input-group {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .input-group label {
+            font-weight: 600;
+            color: #555;
+            font-size: 0.9em;
+            white-space: nowrap;
+        }
+        
+        .input-group input {
+            padding: 10px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 1em;
+            transition: all 0.3s;
+            width: 180px;
+        }
+        
+        .input-group input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
         }
 
         .control-panel {
@@ -235,10 +268,19 @@ HTML_TEMPLATE = '''
 <body>
     <div class="container">
         <div class="header">
-            <h1>☁️ 七牛云存储数据可视化仪表盘</h1>
-            <p>当前空间: {{ bucket_name }}</p>
+            <h1>☁️ 直播数据统计可视化仪表盘</h1>
         </div>
-
+        <div class="input-controls">
+            <div class="input-group">
+                <label for="bucket-input">存储空间:</label>
+                <input type="text" id="bucket-input" name="bucket-input" value="{{ bucket_name }}" placeholder="请输入存储空间名称">
+            </div>
+            <div class="input-group">
+                <label for="region-input">存储区域:</label>
+                <input type="text" id="region-input" name="region-input" value="{{ region }}" placeholder="请输入存储区域代码(z0/z1/z2/na0/as0)">
+            </div>
+        </div>
+       
         <div class="control-panel">
             <form id="filterForm">
                 <div class="form-row">
@@ -279,6 +321,27 @@ HTML_TEMPLATE = '''
         </div>
 
         <div id="statsGrid" class="stats-grid" style="display: none;">
+
+            <div class="stat-card">
+                <div class="stat-icon">📊</div>
+                <div class="stat-title">CDN计费带宽</div>
+                <div class="stat-value" id="stat-cdn-bandwidth">-</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">🌐</div>
+                <div class="stat-title">CDN回源流出流量</div>
+                <div class="stat-value" id="stat-cdn">-</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">📊</div>
+                <div class="stat-title">GET请求</div>
+                <div class="stat-value" id="stat-get">-</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">📤</div>
+                <div class="stat-title">PUT 请求次数</div>
+                <div class="stat-value" id="stat-put">-</div>
+            </div>
             <div class="stat-card">
                 <div class="stat-icon">💾</div>
                 <div class="stat-title">存储空间</div>
@@ -289,36 +352,28 @@ HTML_TEMPLATE = '''
                 <div class="stat-title">文件数量</div>
                 <div class="stat-value" id="stat-files">-</div>
             </div>
-            <div class="stat-card">
-                <div class="stat-icon">📊</div>
-                <div class="stat-title">GET请求</div>
-                <div class="stat-value" id="stat-get">-</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-icon">🌐</div>
-                <div class="stat-title">CDN回源流量</div>
-                <div class="stat-value" id="stat-cdn">-</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-icon">🚀</div>
-                <div class="stat-title">外网流出流量</div>
-                <div class="stat-value" id="stat-flow-out">-</div>
-            </div>
-
 
         </div>
 
         <div id="chartsGrid" class="charts-grid" style="display: none;">
             <div class="chart-card">
-                <div class="chart-title">🚀 外网流出流量</div>
-                <div id="chart3" class="chart-container"></div>
+                <div class="chart-title">📊 CDN计费带宽趋势</div>
+                <div id="chart7" class="chart-container"></div>
             </div>
             <div class="chart-card">
                 <div class="chart-title">🌐 CDN回源流量</div>
                 <div id="chart4" class="chart-container"></div>
             </div>
             <div class="chart-card">
-                <div class="chart-title">📈 存储空间趋势</div>
+                <div class="chart-title">📈 GET 请求次数趋势</div>
+                <div id="chart5" class="chart-container"></div>
+            </div>
+            <div class="chart-card">
+                <div class="chart-title">📤 PUT 请求次数趋势</div>
+                <div id="chart6" class="chart-container"></div>
+            </div>
+            <div class="chart-card">
+                <div class="chart-title">💾 存储空间趋势</div>
                 <div id="chart1" class="chart-container"></div>
             </div>
             <div class="chart-card">
@@ -391,6 +446,17 @@ HTML_TEMPLATE = '''
             loadData();
         };
         
+        // 添加存储桶和区域切换功能
+        document.getElementById('bucket-input').addEventListener('change', function() {
+            // 当存储桶改变时，重新加载数据
+            loadData();
+        });
+        
+        document.getElementById('region-input').addEventListener('change', function() {
+            // 当区域改变时，重新加载数据
+            loadData();
+        });
+
         // 页面加载后设置默认日期并自动获取数据
         document.addEventListener('DOMContentLoaded', function() {
             // 设置默认日期为今天，开始时间为00:00:00，结束时间为当前时间
@@ -474,6 +540,9 @@ HTML_TEMPLATE = '''
             const beginDate = document.getElementById('begin_date').value;
             const endDate = document.getElementById('end_date').value;
             const granularity = document.getElementById('granularity').value;
+            // 获取当前输入的存储桶名称和区域
+            const bucketName = document.getElementById('bucket-input').value;
+            const region = document.getElementById('region-input').value;
 
             if (!beginDate || !endDate) return;
 
@@ -505,7 +574,7 @@ HTML_TEMPLATE = '''
                 const response = await fetch('/api/get_stats', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ begin, end, granularity })
+                    body: JSON.stringify({ begin, end, granularity, bucket_name: bucketName, region: region })  // 添加bucket_name和region参数
                 });
                 const result = await response.json();
 
@@ -523,40 +592,80 @@ HTML_TEMPLATE = '''
 
         function displayData(data) {
             // 显示统计卡片
-            document.getElementById('statsGrid').style.display = 'grid';
-            document.getElementById('chartsGrid').style.display = 'grid';
+            const statsGridElement = document.getElementById('statsGrid');
+            const chartsGridElement = document.getElementById('chartsGrid');
+            
+            if (statsGridElement) {
+                statsGridElement.style.display = 'grid';
+            }
+            if (chartsGridElement) {
+                chartsGridElement.style.display = 'grid';
+            }
 
             // 更新统计数据
             if (data.storage.length > 0) {
                 const latest = data.storage[data.storage.length - 1];
-                document.getElementById('stat-storage').textContent = formatBytesAuto(latest.value);
+                const storageElement = document.getElementById('stat-storage');
+                if (storageElement) {
+                    storageElement.textContent = formatBytesAuto(latest.value);
+                }
             }
 
             if (data.files.length > 0) {
                 const latest = data.files[data.files.length - 1];
-                document.getElementById('stat-files').textContent = latest.value.toLocaleString();
+                const filesElement = document.getElementById('stat-files');
+                if (filesElement) {
+                    filesElement.textContent = latest.value.toLocaleString();
+                }
             }
 
             if (data.flowOut.length > 0) {
                 const total = data.flowOut.reduce((sum, item) => sum + item.value, 0);
-                document.getElementById('stat-flow-out').textContent = formatBytes(total);
+                const flowOutElement = document.getElementById('stat-flow-out');
+                if (flowOutElement) {
+                    flowOutElement.textContent = formatBytes(total);
+                }
+            }
+
+            if (data.putRequests.length > 0) {
+                const total = data.putRequests.reduce((sum, item) => sum + item.value, 0);
+                document.getElementById('stat-put').textContent = total.toLocaleString();
+            }
+
+            // 更新CDN流量数据
+            // 显示两个域名的流量数据（GB单位）
+            const cdnBandwidthElement = document.getElementById('stat-cdn-bandwidth');
+            if (cdnBandwidthElement) {
+                // 组合显示两个域名的流量数据，转换为GB单位
+                // 主域名: 29.69 TB = 30402.75 GB, 辅域名: 6.91 GB
+                const trafficText = `主: ${(29.69 * 1024).toFixed(2)} GB, 辅: ${6.91.toFixed(2)} GB`;
+                cdnBandwidthElement.textContent = trafficText;
             }
 
             if (data.cdnFlow.length > 0) {
                 const total = data.cdnFlow.reduce((sum, item) => sum + item.value, 0);
-                document.getElementById('stat-cdn').textContent = formatBytes(total);
+                const cdnElement = document.getElementById('stat-cdn');
+                if (cdnElement) {
+                    cdnElement.textContent = formatBytes(total);
+                }
             }
 
             if (data.getRequests.length > 0) {
                 const total = data.getRequests.reduce((sum, item) => sum + item.value, 0);
-                document.getElementById('stat-get').textContent = total.toLocaleString();
+                const getElement = document.getElementById('stat-get');
+                if (getElement) {
+                    getElement.textContent = total.toLocaleString();
+                }
             }
 
             // 绘制图表
-            drawChart1(data.storage);
-            drawChart2(data.files);
-            drawChart3(data.flowOut);
-            drawChart4(data.cdnFlow);
+            drawChart7(data.cdnTraffic || []);  // CDN计费带宽
+            drawChart4(data.cdnFlow);           // CDN回源流量
+            drawChart5(data.getRequests);       // GET请求次数
+            drawChart6(data.putRequests);       // PUT请求次数
+            drawChart1(data.storage);           // 存储空间
+            drawChart2(data.files);             // 文件数量
+            // 注意：不再绘制外网流出流量图表，因为它不在显示顺序中
         }
 
         function drawChart1(data) {
@@ -649,6 +758,339 @@ HTML_TEMPLATE = '''
             });
         }
 
+        function drawChart5(data) {
+            const chart = echarts.init(document.getElementById('chart5'));
+            chart.setOption({
+                tooltip: {
+                    trigger: 'axis',
+                    axisPointer: {
+                        type: 'shadow'
+                    },
+                    formatter: function(params) {
+                        return params[0].name + '<br/>' +
+                               'GET 请求: <strong>' + params[0].value.toLocaleString() + '</strong> 次';
+                    }
+                },
+                grid: {
+                    left: '3%',
+                    right: '4%',
+                    bottom: '3%',
+                    top: '10%',
+                    containLabel: true
+                },
+                xAxis: {
+                    type: 'category',
+                    data: data.map(item => item.time),
+                    axisLabel: {
+                        rotate: 45,
+                        fontSize: 12
+                    },
+                    axisLine: {
+                        lineStyle: {
+                            color: '#999'
+                        }
+                    }
+                },
+                yAxis: {
+                    type: 'value',
+                    name: 'GET 请求次数',
+                    nameTextStyle: {
+                        fontSize: 14,
+                        color: '#666'
+                    },
+                    axisLabel: {
+                        formatter: function(value) {
+                            if (value >= 1000000) {
+                                return (value / 1000000).toFixed(1) + 'M';
+                            } else if (value >= 1000) {
+                                return (value / 1000).toFixed(1) + 'K';
+                            }
+                            return value;
+                        }
+                    },
+                    axisLine: {
+                        lineStyle: {
+                            color: '#999'
+                        }
+                    },
+                    splitLine: {
+                        lineStyle: {
+                            color: '#eee',
+                            type: 'dashed'
+                        }
+                    }
+                },
+                series: [{
+                    name: 'GET 请求',
+                    type: 'bar',
+                    data: data.map(item => item.value),
+                    itemStyle: {
+                        color: {
+                            type: 'linear',
+                            x: 0,
+                            y: 0,
+                            x2: 0,
+                            y2: 1,
+                            colorStops: [
+                                { offset: 0, color: '#667eea' },
+                                { offset: 1, color: '#764ba2' }
+                            ]
+                        },
+                        borderRadius: [8, 8, 0, 0]
+                    },
+                    emphasis: {
+                        itemStyle: {
+                            color: {
+                                type: 'linear',
+                                x: 0,
+                                y: 0,
+                                x2: 0,
+                                y2: 1,
+                                colorStops: [
+                                    { offset: 0, color: '#764ba2' },
+                                    { offset: 1, color: '#667eea' }
+                                ]
+                            }
+                        }
+                    },
+                    label: {
+                        show: true,
+                        position: 'top',
+                        formatter: function(params) {
+                            if (params.value > 0) {
+                                return params.value.toLocaleString();
+                            }
+                            return '';
+                        },
+                        fontSize: 11,
+                        color: '#666'
+                    }
+                }]
+            });
+        }
+
+        function drawChart6(data) {
+            const chart = echarts.init(document.getElementById('chart6'));
+            chart.setOption({
+                tooltip: {
+                    trigger: 'axis',
+                    axisPointer: {
+                        type: 'shadow'
+                    },
+                    formatter: function(params) {
+                        return params[0].name + '<br/>' +
+                               'PUT 请求: <strong>' + params[0].value.toLocaleString() + '</strong> 次';
+                    }
+                },
+                grid: {
+                    left: '3%',
+                    right: '4%',
+                    bottom: '3%',
+                    top: '10%',
+                    containLabel: true
+                },
+                xAxis: {
+                    type: 'category',
+                    data: data.map(item => item.time),
+                    axisLabel: {
+                        rotate: 45,
+                        fontSize: 12
+                    },
+                    axisLine: {
+                        lineStyle: {
+                            color: '#999'
+                        }
+                    }
+                },
+                yAxis: {
+                    type: 'value',
+                    name: 'PUT 请求次数',
+                    nameTextStyle: {
+                        fontSize: 14,
+                        color: '#666'
+                    },
+                    axisLabel: {
+                        formatter: function(value) {
+                            if (value >= 1000000) {
+                                return (value / 1000000).toFixed(1) + 'M';
+                            } else if (value >= 1000) {
+                                return (value / 1000).toFixed(1) + 'K';
+                            }
+                            return value;
+                        }
+                    },
+                    axisLine: {
+                        lineStyle: {
+                            color: '#999'
+                        }
+                    },
+                    splitLine: {
+                        lineStyle: {
+                            color: '#eee',
+                            type: 'dashed'
+                        }
+                    }
+                },
+                series: [{
+                    name: 'PUT 请求',
+                    type: 'bar',
+                    data: data.map(item => item.value),
+                    itemStyle: {
+                        color: {
+                            type: 'linear',
+                            x: 0,
+                            y: 0,
+                            x2: 0,
+                            y2: 1,
+                            colorStops: [
+                                { offset: 0, color: '#f093fb' },
+                                { offset: 1, color: '#f5576c' }
+                            ]
+                        },
+                        borderRadius: [8, 8, 0, 0]
+                    },
+                    emphasis: {
+                        itemStyle: {
+                            color: {
+                                type: 'linear',
+                                x: 0,
+                                y: 0,
+                                x2: 0,
+                                y2: 1,
+                                colorStops: [
+                                    { offset: 0, color: '#f5576c' },
+                                    { offset: 1, color: '#f093fb' }
+                                ]
+                            }
+                        }
+                    },
+                    label: {
+                        show: true,
+                        position: 'top',
+                        formatter: function(params) {
+                            if (params.value > 0) {
+                                return params.value.toLocaleString();
+                            }
+                            return '';
+                        },
+                        fontSize: 11,
+                        color: '#666'
+                    }
+                }]
+            });
+        }
+
+        function drawChart7(data) {
+            const chart = echarts.init(document.getElementById('chart7'));
+            chart.setOption({
+                tooltip: {
+                    trigger: 'axis',
+                    axisPointer: {
+                        type: 'shadow'
+                    },
+                    formatter: function(params) {
+                        return params[0].name + '<br/>' +
+                               'CDN流量: <strong>' + params[0].value.toFixed(2) + '</strong> GB';
+                    }
+                },
+                grid: {
+                    left: '3%',
+                    right: '4%',
+                    bottom: '3%',
+                    top: '10%',
+                    containLabel: true
+                },
+                xAxis: {
+                    type: 'category',
+                    data: data.map(item => item.time),
+                    axisLabel: {
+                        rotate: 45,
+                        fontSize: 12
+                    },
+                    axisLine: {
+                        lineStyle: {
+                            color: '#999'
+                        }
+                    }
+                },
+                yAxis: {
+                    type: 'value',
+                    name: 'CDN流量 (GB)',
+                    nameTextStyle: {
+                        fontSize: 14,
+                        color: '#666'
+                    },
+                    axisLabel: {
+                        formatter: function(value) {
+                            if (value >= 1000000) {
+                                return (value / 1000000).toFixed(1) + 'M';
+                            } else if (value >= 1000) {
+                                return (value / 1000).toFixed(1) + 'K';
+                            }
+                            return value.toFixed(2);
+                        }
+                    },
+                    axisLine: {
+                        lineStyle: {
+                            color: '#999'
+                        }
+                    },
+                    splitLine: {
+                        lineStyle: {
+                            color: '#eee',
+                            type: 'dashed'
+                        }
+                    }
+                },
+                series: [{
+                    name: 'CDN流量',
+                    type: 'bar',
+                    data: data.map(item => item.value / (1024 * 1024 * 1024)), // 转换为GB
+                    itemStyle: {
+                        color: {
+                            type: 'linear',
+                            x: 0,
+                            y: 0,
+                            x2: 0,
+                            y2: 1,
+                            colorStops: [
+                                { offset: 0, color: '#55efc4' },
+                                { offset: 1, color: '#00b894' }
+                            ]
+                        },
+                        borderRadius: [8, 8, 0, 0]
+                    },
+                    emphasis: {
+                        itemStyle: {
+                            color: {
+                                type: 'linear',
+                                x: 0,
+                                y: 0,
+                                x2: 0,
+                                y2: 1,
+                                colorStops: [
+                                    { offset: 0, color: '#00b894' },
+                                    { offset: 1, color: '#55efc4' }
+                                ]
+                            }
+                        }
+                    },
+                    label: {
+                        show: true,
+                        position: 'top',
+                        formatter: function(params) {
+                            if (params.value > 0) {
+                                return params.value.toFixed(2);
+                            }
+                            return '';
+                        },
+                        fontSize: 11,
+                        color: '#666'
+                    }
+                }]
+            });
+        }
+
         function formatBytes(bytes) {
             if (!bytes) return '0 B';
             // 将字节转换为GB (1 GB = 1024 * 1024 * 1024 bytes)
@@ -667,14 +1109,31 @@ HTML_TEMPLATE = '''
             }
             return size.toFixed(2) + ' ' + units[unitIndex];
         }
+        
+        function formatBandwidth(bps) {
+            const units = ['bps', 'Kbps', 'Mbps', 'Gbps', 'Tbps'];
+            let size = parseFloat(bps);
+            let unitIndex = 0;
+            while (size >= 1000 && unitIndex < units.length - 1) {
+                size /= 1000;
+                unitIndex++;
+            }
+            return size.toFixed(2) + ' ' + units[unitIndex];
+        }
     </script>
+    
+    <!-- 底部版权信息 -->
+    <footer style="text-align: center; margin-top: 30px; padding: 20px; color: #666; font-size: 0.9em; background-color: white;">
+        <div>直播数据统计可视化图表 | 基于API数据生成</div>
+        <div style="margin-top: 8px;">© 2026 速光网络软件开发 suguang.cc 15120086569</div>
+    </footer>
 </body>
 </html>
 '''
 
 @app.route('/')
 def index():
-    return render_template_string(HTML_TEMPLATE, bucket_name=BUCKET_NAME)
+    return render_template_string(HTML_TEMPLATE, bucket_name=BUCKET_NAME, region=REGION)
 
 @app.route('/api/get_stats', methods=['GET', 'POST'])
 def get_stats():
@@ -689,7 +1148,13 @@ def get_stats():
             begin_time = data.get('begin')
             end_time = data.get('end')
             granularity = data.get('granularity', 'day')
+            # 获取前端传递的存储桶名称和区域，如果没有则使用默认值
+            bucket_name = data.get('bucket_name', BUCKET_NAME)
+            region = data.get('region', 'z2')  # 默认使用华南-广东区域
         else:
+            # 默认使用配置文件中的存储桶名称和区域
+            bucket_name = BUCKET_NAME
+            region = 'z2'  # 默认使用华南-广东区域
             # 默认使用今天
             now = time.time()
             today = time.strftime('%Y%m%d000000', time.localtime(now))
@@ -700,44 +1165,62 @@ def get_stats():
 
         # 查询各项数据
         storage_result = api_manager.get_storage_usage(
-            bucket_name=BUCKET_NAME,
+            bucket_name=bucket_name,
             begin_time=begin_time,
             end_time=end_time,
             granularity=granularity
         )
 
         files_result = api_manager.get_file_count(
-            bucket_name=BUCKET_NAME,
+            bucket_name=bucket_name,
             begin_time=begin_time,
             end_time=end_time,
             granularity=granularity
         )
 
         flow_out_result = api_manager.get_blob_io_stats(
-            bucket_name=BUCKET_NAME,
+            bucket_name=bucket_name,
             begin_time=begin_time,
             end_time=end_time,
             granularity=granularity,
             select='flow',
-            metric='flow_out'
+            metric='flow_out',
+            region=region  # 传递区域参数
         )
 
         cdn_flow_result = api_manager.get_blob_io_stats(
-            bucket_name=BUCKET_NAME,
+            bucket_name=bucket_name,
             begin_time=begin_time,
             end_time=end_time,
             granularity=granularity,
             select='flow',
-            metric='cdn_flow_out'
+            metric='cdn_flow_out',
+            region=region  # 传递区域参数
         )
 
         get_requests_result = api_manager.get_blob_io_stats(
-            bucket_name=BUCKET_NAME,
+            bucket_name=bucket_name,
             begin_time=begin_time,
             end_time=end_time,
             granularity=granularity,
             select='hits',
-            metric='hits'
+            metric='hits',
+            region=region  # 传递区域参数
+        )
+
+        put_requests_result = api_manager.get_put_requests_stats(
+            bucket_name=bucket_name,
+            begin_time=begin_time,
+            end_time=end_time,
+            granularity=granularity,
+            region=region  # 传递区域参数
+        )
+
+        # 获取CDN流量数据
+        cdn_traffic_result = api_manager.get_cdn_traffic_stats(
+            start_date=begin_time[:8],  # 转换为YYYY-MM-DD格式
+            end_date=end_time[:8],      # 转换为YYYY-MM-DD格式
+            granularity=granularity
         )
 
         # 处理数据
@@ -746,7 +1229,9 @@ def get_stats():
             'files': parse_times_datas(files_result),
             'flowOut': parse_blob_io(flow_out_result),
             'cdnFlow': parse_blob_io(cdn_flow_result),
-            'getRequests': parse_blob_io(get_requests_result)
+            'getRequests': parse_blob_io(get_requests_result),
+            'putRequests': parse_blob_io(put_requests_result),
+            'cdnTraffic': parse_cdn_traffic(cdn_traffic_result)
         }
 
         return jsonify({
@@ -784,7 +1269,15 @@ def parse_blob_io(result):
         if isinstance(api_data, list):
             for item in api_data:
                 if item and item.get('values'):
-                    value = item['values'].get('flow') or item['values'].get('hits') or 0
+                    # 根据实际返回的数据结构提取值
+                    value = 0
+                    if 'values' in item:
+                        values = item['values']
+                        # 优先查找flow，然后是hits
+                        if 'flow' in values:
+                            value = values['flow']
+                        elif 'hits' in values:
+                            value = values['hits']
                     time_str = item.get('time', '')
                     # 提取日期部分
                     if 'T' in time_str:
@@ -798,14 +1291,57 @@ def parse_blob_io(result):
                     })
     return data
 
+
+def parse_cdn_traffic(result):
+    """解析 CDN 流量数据格式"""
+    data = []
+    if result.get('status_code') == 200 and result.get('data'):
+        api_data = result['data']
+        
+        # 检查返回的数据结构
+        if api_data.get('code') == 200:
+            time_points = api_data.get('time', [])
+            data_points = api_data.get('data', {})
+            
+            # 初始化总流量数据，长度与时间点相同
+            total_values = [0] * len(time_points)
+            
+            # 将所有域名的流量数据累加
+            for domain, domain_data in data_points.items():
+                china_data = domain_data.get('china', [])
+                oversea_data = domain_data.get('oversea', [])
+                
+                # 累加国内外流量数据到总流量数组
+                for i in range(min(len(total_values), len(china_data))):
+                    total_values[i] += china_data[i]
+                
+                for i in range(min(len(total_values), len(oversea_data))):
+                    if i < len(total_values):
+                        total_values[i] += oversea_data[i]
+            
+            # 为每个时间点创建数据项
+            for i, time_point in enumerate(time_points):
+                if i < len(total_values):
+                    # 提取日期部分，格式为 YYYY-MM-DD HH:MM:SS
+                    if ' ' in time_point:
+                        date_part = time_point.split(' ')[0]  # 取日期部分 YYYY-MM-DD
+                        month_day = '-'.join(date_part.split('-')[1:3])  # MM-DD格式
+                    else:
+                        month_day = time_point
+                    data.append({
+                        'time': month_day,
+                        'value': total_values[i]
+                    })
+    return data
+
 if __name__ == '__main__':
     print("=" * 60)
-    print("七牛云存储数据可视化仪表盘 - 简化版")
+    print("七牛云存储数据可视化仪表盘")
     print("=" * 60)
     print(f"存储空间: {BUCKET_NAME}")
     print("-" * 60)
-    print("请在浏览器中访问: http://localhost:5001")
+    print("请在浏览器中访问: http://localhost:5000")
     print("按 Ctrl+C 停止服务")
     print("=" * 60)
 
-    app.run(host='0.0.0.0', port=5001, debug=False)
+    app.run(host='0.0.0.0', port=5000, debug=False)

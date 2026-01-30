@@ -29,8 +29,11 @@ class QiniuAPIManager:
         if params is None:
             params = {}
         
-        # 构建完整URL
-        query_string = urlencode(params)
+        # 构建完整URL，保留$符号不被编码
+        query_parts = []
+        for key, value in params.items():
+            query_parts.append(f'{key}={value}')
+        query_string = '&'.join(query_parts)
         path = f"{DATA_STAT_API[api_endpoint]['endpoint']}?{query_string}"
         full_url = f"{self.base_url}{path}"
 
@@ -38,6 +41,7 @@ class QiniuAPIManager:
         date_header = time.strftime('%Y%m%dT%H%M%S', time.gmtime()) + 'Z'
 
         # 使用QiniuMacAuth生成包含X-Qiniu-Date的认证令牌
+        # 注意：这里需要确保mac_auth对象被正确初始化
         token = self.mac_auth.token_of_request(
             method=method,
             host="api.qiniuapi.com",
@@ -55,7 +59,16 @@ class QiniuAPIManager:
 
         # 发送请求
         try:
-            response = requests.get(full_url, headers=headers, timeout=30)
+            # 设置不使用代理
+            proxies = {
+                'http': '',
+                'https': ''
+            }
+            
+            if method.upper() == 'GET':
+                response = requests.get(full_url, headers=headers, timeout=30, proxies=proxies)
+            else:
+                response = requests.post(full_url, headers=headers, json=params, timeout=30, proxies=proxies)
             
             return {
                 'status_code': response.status_code,
@@ -90,11 +103,11 @@ class QiniuAPIManager:
         if bucket_name:
             params['bucket'] = bucket_name
         if region:
-            params['region'] = region
+            params['$region'] = region
         else:
-            params['region'] = DEFAULT_PARAMS['region']  # 使用默认区域
+            params['$region'] = DEFAULT_PARAMS.get('region', 'z1')  # 使用默认区域
         if file_type is not None:
-            params['$ftype'] = file_type
+            params['$ftype'] = str(file_type)
 
         return self._make_request('space', params)
     
@@ -119,11 +132,11 @@ class QiniuAPIManager:
         if bucket_name:
             params['bucket'] = bucket_name
         if region:
-            params['region'] = region
+            params['$region'] = region
         else:
-            params['region'] = DEFAULT_PARAMS['region']  # 使用默认区域
+            params['$region'] = DEFAULT_PARAMS.get('region', 'z1')  # 使用默认区域
         if file_type is not None:
-            params['$ftype'] = file_type
+            params['$ftype'] = str(file_type)
 
         return self._make_request('count', params)
     
@@ -214,11 +227,80 @@ class QiniuAPIManager:
         if region:
             params['$region'] = region
         else:
-            params['$region'] = DEFAULT_PARAMS['region']  # 使用默认区域
+            params['$region'] = DEFAULT_PARAMS.get('region', 'z1')  # 使用默认区域
         if file_type is not None:
-            params['$ftype'] = file_type
+            params['$ftype'] = str(file_type)
 
         return self._make_request('rs_put', params)
+
+    def get_cdn_traffic_stats(self, domains=None, start_date=None, end_date=None, granularity='day'):
+        """
+        获取CDN流量统计
+        
+        Args:
+            domains (list): 域名列表
+            start_date (str): 开始日期 YYYY-MM-DD
+            end_date (str): 结束日期 YYYY-MM-DD
+            granularity (str): 时间粒度，'day', 'hour', '5min'
+        """
+        import datetime
+        import requests
+        from config import QINIU_CONFIG
+        
+        # 初始化认证
+        q = self.auth
+        
+        # 如果未提供日期，则使用默认值
+        if start_date is None:
+            start_date = (datetime.datetime.now() - datetime.timedelta(days=7)).strftime('%Y-%m-%d')
+        if end_date is None:
+            end_date = datetime.datetime.now().strftime('%Y-%m-%d')
+        
+        # 设置域名
+        if domains is None:
+            domains = QINIU_CONFIG.get('cdn_domains', [])
+        
+        # 域名列表转为字符串，用分号分割
+        domains_str = ';'.join(domains) if isinstance(domains, list) else domains
+        
+        # CDN流量API基础配置
+        base_url = 'http://fusion.qiniuapi.com'
+        flux_url = f"{base_url}/v2/tune/flux"
+        flux_payload = {
+            "startDate": start_date,
+            "endDate": end_date,
+            "granularity": granularity,
+            "domains": domains_str
+        }
+        
+        try:
+            # 生成认证token
+            token = q.token_of_request(flux_url, body=str(flux_payload))
+            
+            headers = {
+                'Authorization': f'QBox {token}',
+                'Content-Type': 'application/json'
+            }
+            
+            # 设置不使用代理
+            proxies = {
+                'http': '',
+                'https': ''
+            }
+            
+            response = requests.post(flux_url, headers=headers, json=flux_payload, proxies=proxies)
+            
+            return {
+                'status_code': response.status_code,
+                'headers': dict(response.headers),
+                'data': response.json() if response.content else None
+            }
+        except Exception as e:
+            return {
+                'status_code': 0,
+                'error': str(e),
+                'data': None
+            }
 
     def get_bucket_info(self, bucket_name=None):
         """

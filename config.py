@@ -6,11 +6,15 @@
 
 # 七牛云服务配置
 QINIU_CONFIG = {
-    'access_key': 'DsHpVVa6tSra_zAUrFHg9dAejTdoRRHTU3Lo9cBP',
-    'secret_key': 'sLBgW7INeM_N9jKaJz7bzakqv0sherpAhtXMNPpK',
-    'bucket_name': 'downwmphpcom',
-    'region': 'z1',  # 华北-河北
-    'base_url': 'https://api.qiniuapi.com'
+    'access_key': 'viamdhr9ySWyYE3vj-Mkg7Eaedo0L7q8X05KWiRa',
+    'secret_key': 'TI8BcbpbzxEIX8rVUpPWxBP3IMvwdmAvP48OQrdB',
+    'bucket_name': 'recordingmini',
+    'region': 'z2',  # 华南-广东
+    'base_url': 'https://api.qiniuapi.com',
+    'cdn_domains': [
+        'cdn.mshcodeadventure.top',
+        'cdnv.mshcodeadventure.top'
+    ]
 }
 
 # 数据统计API配置

@@ -920,9 +920,9 @@ if __name__ == '__main__':
     print(f"SecretKey: {SECRET_KEY[:8]}...{SECRET_KEY[-4:]}")
     print(f"默认存储空间: {BUCKET_NAME}")
     print("-" * 60)
-    print("请在浏览器中访问: http://localhost:5000")
+    print("请在浏览器中访问: http://localhost:8000")
     print("按 Ctrl+C 停止服务")
     print("=" * 60)
     
     # 启动Web服务器
-    app.run(host='0.0.0.0', port=5000, debug=False)
+    app.run(host='0.0.0.0', port=8000, debug=False)

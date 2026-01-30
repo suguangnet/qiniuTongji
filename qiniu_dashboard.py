@@ -170,12 +170,83 @@ HTML_TEMPLATE = '''
         .preset-btn.active {
             background: #764ba2;
         }
+        
+        .refresh-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-left: 10px;
+        }
+        
+        .refresh-label {
+            font-weight: 600;
+            color: #555;
+            font-size: 0.9em;
+            white-space: nowrap;
+        }
+        
+        .refresh-select {
+            padding: 8px 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 0.9em;
+            background: white;
+            cursor: pointer;
+            transition: all 0.3s;
+            min-width: 110px;
+        }
+        
+        .refresh-select:hover,
+        .refresh-select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        .refresh-countdown {
+            font-weight: 600;
+            color: #667eea;
+            font-size: 0.95em;
+            min-width: 4em;
+        }
 
         .form-group input:focus,
         .form-group select:focus {
             outline: none;
             border-color: #667eea;
             box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        .granularity-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .granularity-row select {
+            flex: 0 1 auto;
+        }
+        
+        .fetch-data-btn {
+            padding: 10px 18px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.3s, box-shadow 0.3s;
+            white-space: nowrap;
+        }
+        
+        .fetch-data-btn:hover {
+            background: #5a6fd8;
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.4);
+        }
+        
+        .fetch-data-btn:active {
+            background: #764ba2;
         }
 
         .stats-grid {
@@ -294,13 +365,16 @@ HTML_TEMPLATE = '''
                         <input type="datetime-local" id="end_date" name="end_date" required step="1">
                     </div>
 
-                    <div class="form-group">
+                    <div class="form-group form-group-with-btn">
                         <label for="granularity">时间粒度:</label>
-                        <select id="granularity" name="granularity">
-                            <option value="5min">5分钟</option>
-                            <option value="hour">小时</option>
-                            <option value="day" selected>天</option>
-                        </select>
+                        <div class="granularity-row">
+                            <select id="granularity" name="granularity">
+                                <option value="5min">5分钟</option>
+                                <option value="hour">小时</option>
+                                <option value="day" selected>天</option>
+                            </select>
+                            <button type="button" id="btn-fetch-data" class="fetch-data-btn">获取数据</button>
+                        </div>
                     </div>
                 </div>
                 
@@ -311,6 +385,15 @@ HTML_TEMPLATE = '''
                     <button type="button" class="preset-btn" data-days="7">7天</button>
                     <button type="button" class="preset-btn" data-days="30">本月</button>
                     <button type="button" class="preset-btn" data-days="-30">上月</button>
+                    <div class="refresh-group">
+                        <label for="refresh-select" class="refresh-label">刷新:</label>
+                        <select id="refresh-select" class="refresh-select" name="refresh">
+                            <option value="0" selected>不刷新</option>
+                            <option value="15">15秒刷新</option>
+                            <option value="30">30秒刷新</option>
+                        </select>
+                        <span id="refresh-countdown" class="refresh-countdown" style="display: none;"></span>
+                    </div>
                 </div>
             </form>
         </div>
@@ -446,6 +529,39 @@ HTML_TEMPLATE = '''
             loadData();
         };
         
+        // 自动刷新定时器与倒计时
+        let refreshIntervalId = null;
+        let countdownSeconds = 0;
+        let refreshTotalSeconds = 0;
+        
+        function applyRefreshInterval() {
+            if (refreshIntervalId) {
+                clearInterval(refreshIntervalId);
+                refreshIntervalId = null;
+            }
+            const countdownEl = document.getElementById('refresh-countdown');
+            const seconds = parseInt(document.getElementById('refresh-select').value, 10);
+            if (seconds > 0) {
+                refreshTotalSeconds = seconds;
+                countdownSeconds = seconds;
+                countdownEl.style.display = 'inline';
+                countdownEl.textContent = countdownSeconds + ' 秒';
+                refreshIntervalId = setInterval(function() {
+                    countdownSeconds--;
+                    countdownEl.textContent = countdownSeconds + ' 秒';
+                    if (countdownSeconds <= 0) {
+                        // 刷新时把结束日期时间设为当前时间，以获取今天实时数据
+                        document.getElementById('end_date').value = formatDateTime(new Date());
+                        loadData();
+                        countdownSeconds = refreshTotalSeconds;
+                    }
+                }, 1000);
+            } else {
+                countdownEl.style.display = 'none';
+                countdownEl.textContent = '';
+            }
+        }
+        
         // 添加存储桶和区域切换功能
         document.getElementById('bucket-input').addEventListener('change', function() {
             // 当存储桶改变时，重新加载数据
@@ -474,6 +590,9 @@ HTML_TEMPLATE = '''
             document.getElementById('begin_date').addEventListener('change', loadData);
             document.getElementById('end_date').addEventListener('change', loadData);
             document.getElementById('granularity').addEventListener('change', loadData);
+            
+            // 获取数据按钮
+            document.getElementById('btn-fetch-data').addEventListener('click', loadData);
             
             // 添加时间预设按钮事件监听
             document.querySelectorAll('.preset-btn').forEach(button => {
@@ -534,6 +653,9 @@ HTML_TEMPLATE = '''
                     setDateRange(beginDate, endDate);
                 });
             });
+            
+            // 刷新选项卡：切换时清除旧定时器并应用新间隔
+            document.getElementById('refresh-select').addEventListener('change', applyRefreshInterval);
         });
 
         async function loadData() {

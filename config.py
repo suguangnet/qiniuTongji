@@ -7,7 +7,7 @@
 # 七牛云服务配置
 QINIU_CONFIG = {
     'access_key': 'viamdhr9ySWyYE3vj-Mkg7Eaedo0L7q8X05KWiRa',
-    'secret_key': 'TI8BcbpbzxEIX8rVUpPWxBP3IMvwdmAvP48OQrdB',
+    'secret_key': 'TI8BcbpbzxEIX8rVUpPWxBP3IMvwdmAvP48OQrAB',
     'bucket_name': 'recordingmini',
     'region': 'z2',  # 华南-广东
     'base_url': 'https://api.qiniuapi.com',

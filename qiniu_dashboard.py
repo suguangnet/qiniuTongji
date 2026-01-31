@@ -50,11 +50,13 @@ HTML_TEMPLATE = '''
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
-            padding: 20px;
+            padding: 10px;
         }
-
-        .container {
+        /* 可以在container中显示最大宽度
             max-width: 1400px;
+        */
+        .container {
+
             margin: 0 auto;
         }
 
@@ -63,7 +65,7 @@ HTML_TEMPLATE = '''
             padding: 30px;
             border-radius: 15px;
             box-shadow: 0 10px 40px rgba(0,0,0,0.1);
-            margin-bottom: 30px;
+            margin-bottom: 15px;
             text-align: center;
         }
 
@@ -78,7 +80,7 @@ HTML_TEMPLATE = '''
             gap: 20px;
             justify-content: center;
             flex-wrap: wrap;
-            margin-top: 15px;
+            margin-bottom: 15px;
         }
         
         .input-group {
@@ -251,42 +253,62 @@ HTML_TEMPLATE = '''
 
         .stats-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 20px;
+            grid-template-columns: repeat(7, calc(96% / 5));
+            gap: 15px;
             margin-bottom: 30px;
         }
 
         .stat-card {
             background: rgba(255, 255, 255, 0.95);
-            padding: 25px;
-            border-radius: 15px;
+            padding: 15px;
+            border-radius: 12px;
             box-shadow: 0 5px 20px rgba(0,0,0,0.1);
             text-align: center;
+            min-height: 170px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            width: 100%;
+            box-sizing: border-box;
         }
 
         .stat-icon {
-            font-size: 2.5em;
-            margin-bottom: 10px;
+            font-size: 2.2em;
+            margin-bottom: 5px;
         }
 
         .stat-title {
             color: #666;
-            font-size: 0.9em;
-            margin-bottom: 10px;
+            font-size: 0.85em;
+            margin-bottom: 8px;
+            word-break: keep-all;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
 
         .stat-value {
             color: #333;
-            font-size: 1.8em;
+            font-size: 1.6em;
             font-weight: bold;
+            word-break: keep-all;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
-
+/*
         .charts-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
             gap: 20px;
         }
-
+*/
+        .charts-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);  /* 改为固定3列 */
+            gap: 15px;
+            overflow-x: auto;
+        }
         .chart-card {
             background: rgba(255, 255, 255, 0.95);
             padding: 25px;
@@ -329,9 +351,132 @@ HTML_TEMPLATE = '''
             100% { transform: rotate(360deg); }
         }
 
-        @media (max-width: 768px) {
+        /* 移动端适配 */
+        @media screen and (max-width: 768px) {
             .charts-grid {
                 grid-template-columns: 1fr;
+            }
+            .container {
+                padding: 10px;
+            }
+            
+            .header h1 {
+                font-size: 1.6em;
+                padding: 15px;
+            }
+            
+            .input-controls {
+                flex-direction: column;
+                align-items: center;
+            }
+            
+            .input-group {
+                width: 100%;
+                max-width: 300px;
+            }
+            
+            .input-group input,
+            .input-group select {
+                width: 100%;
+            }
+            
+            .time-presets {
+                flex-direction: row;
+                flex-wrap: wrap;
+                justify-content: center;
+            }
+            
+            .preset-btn {
+                padding: 6px 10px;
+                font-size: 0.8em;
+            }
+            
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr); /* 移动端显示2列 */
+                gap: 12px;
+            }
+            
+            .stat-card {
+                padding: 12px;
+                min-height: 110px;
+            }
+            
+            .stat-icon {
+                font-size: 1.8em;
+            }
+            
+            .stat-title {
+                font-size: 0.8em;
+            }
+            
+            .stat-value {
+                font-size: 1.3em;
+            }
+            
+            .charts-grid {
+                grid-template-columns: 1fr; /* 移动端每行显示1个图表 */
+                gap: 15px;
+            }
+            
+            .chart-card {
+                margin: 10px 0;
+                width: 100%;
+                max-width: 100%;
+                overflow: hidden;
+            }
+            
+            .chart-container {
+                width: 100% !important;
+                min-height: 200px;
+                height: auto;
+            }
+            
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+            
+            .control-panel {
+                padding: 15px;
+            }
+        }
+        
+        /* 小屏手机适配 */
+        @media screen and (max-width: 480px) {
+            .header h1 {
+                font-size: 1.4em;
+            }
+            
+            .stats-grid {
+                grid-template-columns: 1fr; /* 超小屏幕显示1列 */
+                gap: 10px;
+            }
+            
+            .stat-card {
+                padding: 10px;
+                min-height: 100px;
+            }
+            
+            .stat-icon {
+                font-size: 1.6em;
+            }
+            
+            .stat-title {
+                font-size: 0.75em;
+            }
+            
+            .stat-value {
+                font-size: 1.2em;
+            }
+            
+            .chart-container {
+                width: 100% !important;
+                min-height: 180px;
+                height: auto;
+            }
+            
+            .preset-btn {
+                padding: 5px 8px;
+                font-size: 0.75em;
             }
         }
     </style>
@@ -426,10 +571,11 @@ HTML_TEMPLATE = '''
                 <div class="stat-value" id="stat-get">-</div>
             </div>
             <div class="stat-card">
-                <div class="stat-icon">📤</div>
+                <div class="stat-icon">🔼</div>
                 <div class="stat-title">PUT 请求次数</div>
                 <div class="stat-value" id="stat-put">-</div>
             </div>
+            <!--
             <div class="stat-card">
                 <div class="stat-icon">💾</div>
                 <div class="stat-title">存储空间</div>
@@ -440,7 +586,7 @@ HTML_TEMPLATE = '''
                 <div class="stat-title">文件数量</div>
                 <div class="stat-value" id="stat-files">-</div>
             </div>
-
+            -->
         </div>
 
         <div id="chartsGrid" class="charts-grid" style="display: none;">
@@ -457,11 +603,11 @@ HTML_TEMPLATE = '''
                 <div id="chart4" class="chart-container"></div>
             </div>
             <div class="chart-card">
-                <div class="chart-title">📈 GET 请求次数趋势</div>
+                <div class="chart-title">📥 GET 请求次数趋势</div>
                 <div id="chart5" class="chart-container"></div>
             </div>
             <div class="chart-card">
-                <div class="chart-title">📤 PUT 请求次数趋势</div>
+                <div class="chart-title">🔼 PUT 请求次数趋势</div>
                 <div id="chart6" class="chart-container"></div>
             </div>
             <div class="chart-card">
